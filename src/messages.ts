@@ -1,5 +1,9 @@
 import { Platform } from 'react-native';
-import type { SendMessage, Payload } from './NativeWearConnectivity';
+import type {
+  SendMessage,
+  Payload,
+  SendMessageWithPath,
+} from './NativeWearConnectivity';
 import { WearConnectivity } from './index';
 import { LIBRARY_NAME, IOS_NOT_SUPPORTED_WARNING } from './constants';
 
@@ -28,12 +32,34 @@ const sendMessage: SendMessage = (message, cb, errCb) => {
   );
 };
 
+const sendMessageWithPath: SendMessageWithPath = (path, payload, cb, errCb) => {
+  const callbackWithDefault = cb ?? defaultReplyCb;
+  const errCbWithDefault = errCb ?? defaultErrCb;
+  return WearConnectivity.sendMessageWithPath(
+    path,
+    payload,
+    callbackWithDefault,
+    errCbWithDefault
+  );
+};
+
 const sendMessageMock: SendMessage = () =>
   console.warn(LIBRARY_NAME + 'message' + IOS_NOT_SUPPORTED_WARNING);
+
+const sendMessageWithPathMock: SendMessageWithPath = () =>
+  console.warn(LIBRARY_NAME + 'messageWithPath' + IOS_NOT_SUPPORTED_WARNING);
 
 let sendMessageExport: SendMessage = sendMessageMock;
 if (Platform.OS !== 'ios') {
   sendMessageExport = sendMessage;
 }
 
-export { sendMessageExport as sendMessage };
+let sendMessageWithPathExport: SendMessageWithPath = sendMessageWithPathMock;
+if (Platform.OS !== 'ios') {
+  sendMessageWithPathExport = sendMessageWithPath;
+}
+
+export {
+  sendMessageExport as sendMessage,
+  sendMessageWithPathExport as sendMessageWithPath,
+};

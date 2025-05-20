@@ -6,6 +6,10 @@ import com.facebook.common.logging.FLog;
 import com.facebook.react.bridge.Arguments;
 import com.facebook.react.bridge.LifecycleEventListener;
 import com.facebook.react.bridge.Promise;
+import com.facebook.react.bridge.ReadableArray;
+import com.facebook.react.bridge.ReadableMap;
+import com.facebook.react.bridge.ReadableMapKeySetIterator;
+import com.facebook.react.bridge.ReadableType;
 import com.facebook.react.bridge.WritableMap;
 import com.google.android.gms.tasks.Task;
 import com.google.android.gms.wearable.Asset;
@@ -20,6 +24,10 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Iterator;
+import java.util.Map;
 
 import androidx.annotation.NonNull;
 import com.facebook.react.modules.core.DeviceEventManagerModule;
@@ -29,6 +37,7 @@ import com.google.android.gms.wearable.DataMap;
 import com.google.android.gms.wearable.DataMapItem;
 
 public class WearConnectivityDataClient implements DataClient.OnDataChangedListener, LifecycleEventListener {
+    public static final String OPTION_URGENT = "urgent";
     private static final String TAG = "WearConnectivityDataClient";
     private DataClient dataClient;
     private static ReactApplicationContext reactContext;
@@ -41,6 +50,111 @@ public class WearConnectivityDataClient implements DataClient.OnDataChangedListe
         reactContext = context;
         dataClient.addListener(this);
         context.addLifecycleEventListener(this);
+    }
+
+    public void sendData(String path, ReadableMap data, ReadableMap options, Promise promise) {
+        PutDataMapRequest dataMapRequest = PutDataMapRequest.create(path);
+        WearConnectivityDataClient.putAll(dataMapRequest.getDataMap(), data);
+        PutDataRequest request = dataMapRequest.asPutDataRequest();
+        boolean urgent = options.hasKey(OPTION_URGENT) && options.getBoolean(OPTION_URGENT);
+        if (urgent) {
+            request.setUrgent();
+        }
+        Task<DataItem> task = dataClient.putDataItem(request);
+        task.addOnSuccessListener(dataItem -> {
+            promise.resolve("Data sent successfully via DataClient.");
+        }).addOnFailureListener(e -> {
+            promise.reject("E_SEND_FAILED", "Data sending failed: " + e);
+        });
+    }
+
+    public static void putAll(DataMap dataMap, ReadableMap data) {
+        if (data == null) {
+            return;
+        }
+
+        ReadableMapKeySetIterator iterator = data.keySetIterator();
+        while (iterator.hasNextKey()) {
+            String key = iterator.nextKey();
+            switch (data.getType(key)) {
+            case Null:
+                // TODO test
+                break;
+            case Boolean:
+                dataMap.putBoolean(key, data.getBoolean(key));
+                break;
+            case Number:
+                dataMap.putDouble(key, data.getDouble(key));
+                break;
+            case String:
+                dataMap.putString(key, data.getString(key));
+                break;
+            case Map:
+                DataMap nestedDataMap = new DataMap();
+                putAll(nestedDataMap, data.getMap(key));
+                dataMap.putDataMap(key, nestedDataMap);
+                break;
+            case Array:
+                putAll(dataMap, data.getArray(key), key);
+                break;
+            default:
+                throw new IllegalArgumentException("Unsupported type: " + data.getType(key));
+            }
+        }
+    }
+    
+    public static void putAll(DataMap dataMap, ReadableArray data, String key) {
+        if (data == null) {
+            return;
+        }
+
+        ReadableType type = data.getType(0);
+        int size = data.size();
+        switch (type) {
+            case String:
+                String[] stringArray = new String[size];
+                for (int i = 0; i < size; i++) {
+                    stringArray[i] = data.getString(i);
+                    if (i == size - 1) {
+                        dataMap.putStringArray(key, stringArray);
+                    }
+                }
+                break;
+            case Number:
+                float[] doubleArray = new float[size];
+                for (int i = 0; i < size; i++) {
+                    doubleArray[i] = (float) data.getDouble(i);
+                    if (i == size - 1) {
+                        dataMap.putFloatArray(key, doubleArray);
+                    }
+                }
+                break;
+            case Boolean:
+                // TODO test
+                byte[] booleanArray = new byte[size];
+                for (int i = 0; i < size; i++) {
+                    booleanArray[i] = (byte) (data.getBoolean(i) ? 1 : 0);
+                    if (i == size - 1) {
+                        dataMap.putByteArray(key, booleanArray);
+                    }
+                }
+                break;
+            case Null:
+                // TODO test
+                break;
+            case Map:
+                DataMap[] dataMaps = new DataMap[size];
+                for (int i = 0; i < size; i++) {
+                    dataMaps[i] = new DataMap();
+                    putAll(dataMaps[i], data.getMap(i));
+                    if (i == size - 1) {
+                        dataMap.putDataMapArrayList(key, new ArrayList<>(Arrays.asList(dataMaps)));
+                    }
+                }
+                break;
+            default:
+                throw new IllegalArgumentException("Unsupported type: " + type);
+        }
     }
 
     /**

@@ -1,11 +1,13 @@
 import { AppRegistry } from 'react-native';
 import { NativeModules, Platform } from 'react-native';
+import { DataOptionKey } from './constants';
 import { watchEvents } from './subscriptions';
-import { sendMessage } from './messages';
+import { sendMessage, sendMessageWithPath } from './messages';
 import type {
   ReplyCallback,
   ErrorCallback,
   SendFile,
+  SendData,
 } from './NativeWearConnectivity';
 import { DeviceEventEmitter } from 'react-native';
 
@@ -37,7 +39,19 @@ const startFileTransfer: SendFile = (file, _metadata) => {
   return WearConnectivity.sendFile(file, _metadata);
 };
 
-export { startFileTransfer, sendMessage, watchEvents, WearConnectivity };
+const sendData: SendData = (path, data, options = {}) => {
+  return WearConnectivity.sendData(path, data, options);
+};
+
+export {
+  startFileTransfer,
+  sendData,
+  sendMessage,
+  sendMessageWithPath,
+  watchEvents,
+  WearConnectivity,
+  DataOptionKey,
+};
 export type { ReplyCallback, ErrorCallback };
 
 type WearParameters = {

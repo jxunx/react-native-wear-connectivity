@@ -1,5 +1,7 @@
 package com.wearconnectivity;
 
+import android.util.Log;
+
 import androidx.annotation.NonNull;
 import com.facebook.react.bridge.Callback;
 import com.facebook.react.bridge.Promise;
@@ -13,6 +15,7 @@ import com.google.android.gms.wearable.NodeClient;
 import com.google.android.gms.wearable.Wearable;
 
 import java.util.List;
+
 import com.google.android.gms.common.GoogleApiAvailability;
 
 public class WearConnectivityModule extends WearConnectivitySpec {
@@ -55,6 +58,25 @@ public class WearConnectivityModule extends WearConnectivitySpec {
     }
   }
 
+    @ReactMethod
+    public void sendData(String path, ReadableMap data, ReadableMap options, Promise promise) {
+        if (dataClient != null) {
+            dataClient.sendData(path, data, options, promise);
+        } else {
+            promise.reject("E_SEND_FAILED", "Failed to send data");
+        }
+    }
+
+  @ReactMethod
+  public void sendMessageWithPath(String path, ReadableMap payload, Callback replyCb, Callback errorCb) {
+      List<Node> connectedNodes = retrieveNodes(errorCb);
+      if (connectedNodes != null && !connectedNodes.isEmpty()) {
+          messageClient.sendMessage(path, payload, connectedNodes, replyCb, errorCb);
+      } else {
+          errorCb.invoke(NO_NODES_FOUND);
+      }
+  }
+
   /**
    * Sends a message to the first nearby node among the provided connectedNodes.
    * If no nearby node is found, it invokes the error callback.
@@ -63,33 +85,48 @@ public class WearConnectivityModule extends WearConnectivitySpec {
   public void sendMessage(ReadableMap messageData, Callback replyCb, Callback errorCb) {
     List<Node> connectedNodes = retrieveNodes(errorCb);
     if (connectedNodes != null && !connectedNodes.isEmpty()) {
-      messageClient.sendMessage(messageData, connectedNodes, replyCb, errorCb);
+      messageClient.sendMessage(null, messageData, connectedNodes, replyCb, errorCb);
     } else {
       errorCb.invoke(NO_NODES_FOUND);
     }
   }
 
-  private List<Node> retrieveNodes(Callback errorCb) {
-    try {
-      int result = GoogleApiAvailability.getInstance().isGooglePlayServicesAvailable(getReactContext());
-      ConnectionResult connectionResult = new ConnectionResult(result);
-      if (!connectionResult.isSuccess()) {
-        errorCb.invoke( MISSING_GOOGLE_PLAY_SERVICES + connectionResult.getErrorMessage());
-        return null;
-      }
-      NodeClient nodeClient = Wearable.getNodeClient(getReactContext());
-      try {
-        Tasks.await(GoogleApiAvailability.getInstance().checkApiAvailability(nodeClient));
-      } catch (Exception e) {
-        errorCb.invoke(INSTALL_GOOGLE_PLAY_WEARABLE + e);
-        return null;
-      }
-      return Tasks.await(nodeClient.getConnectedNodes());
-    } catch (Exception e) {
-      errorCb.invoke(RETRIEVE_NODES_FAILED + e);
-      return null;
+    private List<Node> retrieveNodes(Callback errorCb) {
+        Thread thread = Thread.currentThread();
+        Log.i(TAG, "retrieveNodes currentThread: " + thread.getName());
+        try {
+            int result = GoogleApiAvailability.getInstance().isGooglePlayServicesAvailable(getReactContext());
+            ConnectionResult connectionResult = new ConnectionResult(result);
+            if (!connectionResult.isSuccess()) {
+                Log.e(TAG, "retrieveNodes !connectionResult.isSuccess()");
+//                  errorCb.invoke(MISSING_GOOGLE_PLAY_SERVICES + connectionResult.getErrorMessage());
+                return null;
+            }
+
+//          CapabilityClient capabilityClient = Wearable.getCapabilityClient(getReactContext());
+//          try {
+//              Tasks.await(GoogleApiAvailability.getInstance().checkApiAvailability(capabilityClient));
+//          } catch (Exception e) {
+//              Log.e(TAG, "retrieveNodes checkApiAvailability(capabilityClient) exception: " + e);
+//              return null;
+//          }
+
+            NodeClient nodeClient = Wearable.getNodeClient(getReactContext());
+            try {
+                Tasks.await(GoogleApiAvailability.getInstance().checkApiAvailability(nodeClient));
+            } catch (Exception e) {
+                Log.e(TAG, "retrieveNodes checkApiAvailability(nodeClient) exception: " + e);
+//                  errorCb.invoke(INSTALL_GOOGLE_PLAY_WEARABLE + e);
+                return null;
+            }
+
+            return Tasks.await(nodeClient.getConnectedNodes());
+        } catch (Exception e) {
+            Log.e(TAG, "retrieveNodes exception: " + e);
+//              errorCb.invoke(RETRIEVE_NODES_FAILED + e);
+            return null;
+        }
     }
-  }
 
   private static ReactApplicationContext getReactContext() {
     return reactContext;
