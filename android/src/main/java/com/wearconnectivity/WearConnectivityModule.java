@@ -91,6 +91,24 @@ public class WearConnectivityModule extends WearConnectivitySpec {
     }
   }
 
+  @ReactMethod
+  public void getConnectedNodes(Promise promise) {
+      List<Node> nodes = retrieveNodes(null);
+      if (nodes == null || nodes.isEmpty()) {
+          promise.reject("E_NO_CONNECTED_NODES", "No connected nodes found.");
+      } else {
+          WritableArray array = Arguments.createArray();
+          nodes.forEach(node -> {
+              WritableMap map = Arguments.createMap();
+              map.putString("id", node.getId());
+              map.putString("displayName", node.getDisplayName());
+              map.putBoolean("isNearby", node.isNearby());
+              array.pushMap(map);
+          });
+          promise.resolve(array);
+      }
+  }
+
     private List<Node> retrieveNodes(Callback errorCb) {
         Thread thread = Thread.currentThread();
         Log.i(TAG, "retrieveNodes currentThread: " + thread.getName());

@@ -35,6 +35,8 @@ const WearConnectivity = WearConnectivityModule
       }
     );
 
+const getConnectedNodes = () => WearConnectivity.getConnectedNodes();
+
 const startFileTransfer: SendFile = (file, _metadata) => {
   return WearConnectivity.sendFile(file, _metadata);
 };
@@ -44,6 +46,7 @@ const sendData: SendData = (path, data, options = {}) => {
 };
 
 export {
+  getConnectedNodes,
   startFileTransfer,
   sendData,
   sendMessage,
